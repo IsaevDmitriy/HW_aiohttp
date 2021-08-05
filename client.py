@@ -21,7 +21,9 @@ async def main():
     # response = await make_request('json', 'post', json={'123': '345'})
     # response = await make_request('user', 'post', json={'username': 'kos', 'password': 'ttt'})
     # response = await make_request('user', 'post', json={'user': 'kos', 'password': 'ttt'})
-    response = await make_request('user', 'get')
+    # response = await make_request('user', 'get')
+    response = await make_request('user', 'post', json={'username': 'nik', 'password': 'iii'})
+    # await make_request('user/1', 'get')
     print(response)
 
 

@@ -1,14 +1,30 @@
 import pydantic
-import aiopg
+import hashlib
+from gino import Gino
 from aiohttp import web
 
-password = ''
-db = ''
 
-PG_DSN = f'postgresql://{password}:1234@127.0.0.1:5432/{db}'
+password = ''
+base = ''
+
+PG_DSN = f'postgres://postgres:{password}@127.0.0.1:5432/{base}'
 
 
 app = web.Application()
+db = Gino()
+
+
+class UserModel(db.Model):
+
+    __table_name__ = 'app_users'
+
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(), nullable=False)
+    password = db.Column(db.String(), nullable=False)
+
+    _idx1 = db.Index('app_users_username', 'username', unique=True)
+
+
 
 
 class UserSerializer(pydantic.BaseModel):
@@ -49,29 +65,31 @@ class User(web.View):
         try:
             user_serialized = UserSerializer(**user_data)
             user_data = user_serialized.dict()
+            user_data['password'] = hashlib.md5(user_data['password'].encode()).hexdigest()
+            new_user = await UserModel.create(**user_data)
 
-            return web.json_response(user_data)
+            return web.json_response(new_user.to_dict())
         except pydantic.error_wrappers.ValidationError:
 
             raise web.HTTPBadRequest
 
+
     async def get(self):
-        pool = self.request.app['pool']
-        async with pool.accure() as conn:
-            async with conn.cursor() as cursor:
-                await cursor.execute('SELECT 1')
-                response = await cursor.fetchall()
-                return web.json_response({'response': response})
+        user_id = self.request.match_info['user_id']
+        user = await UserModel.get(int(user_id))
+        user_data = user.to_dict()
+        user_data.pop('password')
+        return web.json_response(user_data)
 
 
 
-async def example_context(app):
+async def init_orm(app):
     print(f'Старт')
-    async with aiopg.create_pool(PG_DSN) as pool:
-        app['pool'] = pool
-        yield
-        pool.close()
-        print('Финиш')
+    await db.set_bind(PG_DSN)
+    await db.gino.create_all()
+    yield
+    await db.pop_bind().close
+    print('Финиш')
 
 
 
@@ -84,7 +102,8 @@ app.add_routes([web.post('/health', HealthView)])
 app.add_routes([web.post('/json', TestViewJson)])
 app.add_routes([web.get('/variable/{test}', TestViewVar)])
 app.add_routes([web.post('/user', User)])
-app.add_routes([web.get('/user', User)])
-app.cleanup_ctx.append(example_context)
+app.add_routes([web.get('/user/{int:user_id}', User)])
+
+app.cleanup_ctx.append(init_orm)
 
 web.run_app(app, port=8080)
