@@ -2,6 +2,12 @@ import pydantic
 import hashlib
 from gino import Gino
 from aiohttp import web
+import sys
+import asyncio
+
+
+if sys.version_info[0] == 3 and sys.version_info[1] >= 8 and sys.platform.startswith('win'):
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 
 password = ''
@@ -16,7 +22,7 @@ db = Gino()
 
 class UserModel(db.Model):
 
-    __table_name__ = 'app_users'
+    tablename = 'app_users'
 
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(), nullable=False)
